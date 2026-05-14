@@ -322,16 +322,26 @@ function pickOption(btn, correctVal) {
     if (b === btn && !isCorrect) b.classList.add('wrong');
   });
 
-  // Update display fields with correct answer
-  if (q.fill === 'abbr') {
+  // Update display fields — always show all 3 on wrong, show the filled one on correct
+  if (isCorrect) {
+    if (q.fill === 'abbr') {
+      document.getElementById('field-abbr').textContent = q.abbr;
+      document.getElementById('field-abbr').className = 'field-value given';
+    }
+    if (q.fill === 'state') {
+      document.getElementById('field-state').textContent = q.state;
+      document.getElementById('field-state').className = 'field-value given';
+    }
+    if (q.fill === 'capital') {
+      document.getElementById('field-capital').textContent = q.capital;
+      document.getElementById('field-capital').className = 'field-value given';
+    }
+  } else {
+    // Wrong — reveal ALL fields so the kid sees the full picture
     document.getElementById('field-abbr').textContent = q.abbr;
     document.getElementById('field-abbr').className = 'field-value given';
-  }
-  if (q.fill === 'state') {
     document.getElementById('field-state').textContent = q.state;
     document.getElementById('field-state').className = 'field-value given';
-  }
-  if (q.fill === 'capital') {
     document.getElementById('field-capital').textContent = q.capital;
     document.getElementById('field-capital').className = 'field-value given';
   }
