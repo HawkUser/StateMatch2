@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>States & Capitals Quiz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🇺🇸 States Quiz</h1>
+      <div class="streak-bar">
+        <span id="streak-display">🔥 0 day streak</span>
+        <span id="badge-count">🏆 0 badges</span>
+      </div>
+    </header>
+
+    <!-- Setup Screen -->
+    <section id="setup-screen" class="screen active">
+      <div class="setup-card">
+        <h2>Pick your states</h2>
+        <div class="setup-presets">
+          <button class="preset-btn active" data-preset="all">All 50</button>
+          <button class="preset-btn" data-preset="weak">⚡ Weak</button>
+          <button class="preset-btn" data-preset="northeast">🏙️ Northeast</button>
+          <button class="preset-btn" data-preset="southeast">🌴 Southeast</button>
+          <button class="preset-btn" data-preset="midwest">🌾 Midwest</button>
+          <button class="preset-btn" data-preset="southwest">🌵 Southwest</button>
+          <button class="preset-btn" data-preset="west">🏔️ West</button>
+          <button class="preset-btn" data-preset="custom">✏️ Custom</button>
+        </div>
+        <div id="custom-picker" class="custom-picker" hidden>
+          <div class="picker-actions">
+            <button id="select-all" class="picker-action">Select All</button>
+            <button id="select-none" class="picker-action">Clear</button>
+            <span id="selected-count" class="selected-count">0 selected</span>
+          </div>
+          <div id="state-checkboxes" class="state-checkboxes"></div>
+        </div>
+        <button id="start-quiz-btn" class="btn-primary">Start Quiz (5 questions)</button>
+      </div>
+    </section>
+
+    <!-- Quiz Screen -->
+    <section id="quiz-screen" class="screen">
+      <div class="quiz-progress">
+        <div class="progress-dots" id="progress-dots"></div>
+        <span id="quiz-counter">1 / 5</span>
+      </div>
+
+      <div class="question-card" id="question-card">
+        <div class="question-row">
+          <div class="field-group">
+            <label>Abbreviation</label>
+            <div class="field-value" id="field-abbr"></div>
+          </div>
+          <div class="field-group">
+            <label>State</label>
+            <div class="field-value" id="field-state"></div>
+          </div>
+          <div class="field-group">
+            <label>Capital</label>
+            <div class="field-value" id="field-capital"></div>
+          </div>
+        </div>
+        <div class="input-section" id="input-section"></div>
+        <div class="quiz-feedback" id="quiz-feedback" hidden></div>
+        <button id="next-btn" class="btn-primary" hidden>Next →</button>
+      </div>
+    </section>
+
+    <!-- Results Screen -->
+    <section id="results-screen" class="screen">
+      <div class="results-card">
+        <div class="results-score" id="results-score">
+          <span class="score-num" id="score-num">0</span>
+          <span class="score-label">/ 5 correct</span>
+        </div>
+        <p id="results-message"></p>
+        <div class="results-list" id="results-list"></div>
+        <button id="play-again" class="btn-primary">Play Again</button>
+      </div>
+    </section>
+
+    <!-- Stats Screen -->
+    <section id="stats-screen" class="screen">
+      <button id="back-to-quiz" class="btn-back">← Back</button>
+      <h2>Your Progress</h2>
+      <div class="stats-overview">
+        <div class="stat-box"><span class="stat-val" id="stat-total">0</span><span class="stat-lbl">Rounds Played</span></div>
+        <div class="stat-box"><span class="stat-val" id="stat-best-streak">0</span><span class="stat-lbl">Best Streak</span></div>
+        <div class="stat-box"><span class="stat-val" id="stat-mastered">0</span><span class="stat-lbl">States Mastered</span></div>
+      </div>
+      <h3>🏆 Badges</h3>
+      <div id="badges-list" class="badges-list"></div>
+      <h3>States Mastery</h3>
+      <div class="mastery-filter">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="mastered">✅ Mastered</button>
+        <button class="filter-btn" data-filter="learning">📝 Learning</button>
+        <button class="filter-btn" data-filter="weak">❌ Weak</button>
+      </div>
+      <div id="states-mastery" class="states-mastery"></div>
+    </section>
+
+    <footer>
+      <button id="show-stats" class="btn-link">📊 View Stats</button>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
