@@ -23,6 +23,10 @@
     <section id="setup-screen" class="screen active">
       <div class="setup-card">
         <h2>Pick your states</h2>
+        <div class="mode-toggle">
+          <button class="mode-btn active" data-mode="quiz">🧠 Quiz (5 Qs)</button>
+          <button class="mode-btn" data-mode="practice">🔁 Practice Mode</button>
+        </div>
         <div class="setup-presets">
           <button class="preset-btn active" data-preset="all">All 50</button>
           <button class="preset-btn" data-preset="weak">⚡ Weak</button>
@@ -41,12 +45,28 @@
           </div>
           <div id="state-checkboxes" class="state-checkboxes"></div>
         </div>
+        <div id="practice-options" class="practice-options" hidden>
+          <label>How many questions?</label>
+          <div class="practice-counts">
+            <button class="count-btn active" data-count="50">50</button>
+            <button class="count-btn" data-count="100">100</button>
+            <button class="count-btn" data-count="200">200</button>
+          </div>
+        </div>
         <button id="start-quiz-btn" class="btn-primary">Start Quiz (5 questions)</button>
       </div>
     </section>
 
     <!-- Quiz Screen -->
     <section id="quiz-screen" class="screen">
+      <div class="practice-hud" id="practice-hud" hidden>
+        <div class="practice-progress-bar"><div class="practice-progress-fill" id="practice-progress-fill"></div></div>
+        <div class="practice-stats">
+          <span id="practice-counter">0 / 50</span>
+          <span id="practice-accuracy">✅ 0%</span>
+          <button id="quit-practice" class="btn-quit">✕ Quit</button>
+        </div>
+      </div>
       <div class="quiz-progress">
         <div class="progress-dots" id="progress-dots"></div>
         <span id="quiz-counter">1 / 5</span>

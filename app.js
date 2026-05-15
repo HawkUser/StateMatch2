@@ -123,6 +123,10 @@ function getMasteredCount() {
 // ===== SETUP SCREEN =====
 let selectedPreset = 'all';
 let customSelection = new Set(STATES.map(s => s.state));
+let gameMode = 'quiz'; // 'quiz' or 'practice'
+let practiceTotal = 50;
+let practiceCount = 0;
+let practiceCorrect = 0;
 
 function getQuizPool() {
   if (selectedPreset === 'custom') {
@@ -143,6 +147,28 @@ function getQuizPool() {
 }
 
 function initSetup() {
+  // Mode toggle
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      gameMode = btn.dataset.mode;
+      document.getElementById('practice-options').hidden = gameMode !== 'practice';
+      const startBtn = document.getElementById('start-quiz-btn');
+      startBtn.textContent = gameMode === 'practice' ? `Start Practice (${practiceTotal} Qs)` : 'Start Quiz (5 questions)';
+    });
+  });
+
+  // Practice count buttons
+  document.querySelectorAll('.count-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.count-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      practiceTotal = parseInt(btn.dataset.count);
+      document.getElementById('start-quiz-btn').textContent = `Start Practice (${practiceTotal} Qs)`;
+    });
+  });
+
   // Preset buttons
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -185,18 +211,80 @@ function initSetup() {
         return;
       }
     }
+    // Save current selection to localStorage
+    const stats = getStats();
+    stats.lastPreset = selectedPreset;
+    stats.lastCustom = selectedPreset === 'custom' ? [...customSelection] : null;
+    stats.lastMode = gameMode;
+    stats.lastPracticeCount = practiceTotal;
+    saveStats(stats);
+
     const pool = getQuizPool();
     if (pool.length < 4) {
       alert('Not enough states in this category. Try a different selection.');
       return;
     }
-    startRound();
+    if (gameMode === 'practice') {
+      startPractice();
+    } else {
+      startRound();
+    }
+  });
+
+  // Quit practice
+  document.getElementById('quit-practice').addEventListener('click', () => {
+    if (confirm('Quit practice? Your progress will be saved.')) {
+      finishPractice();
+    }
   });
 }
 
 function updateCustomCount() {
   const count = document.querySelectorAll('#state-checkboxes input:checked').length;
   document.getElementById('selected-count').textContent = `${count} selected`;
+}
+
+function restoreSavedSelection() {
+  const stats = getStats();
+
+  // Restore preset
+  if (stats.lastPreset) {
+    selectedPreset = stats.lastPreset;
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    const presetBtn = document.querySelector(`.preset-btn[data-preset="${selectedPreset}"]`);
+    if (presetBtn) presetBtn.classList.add('active');
+    document.getElementById('custom-picker').hidden = selectedPreset !== 'custom';
+  }
+
+  // Restore custom checkboxes
+  if (stats.lastCustom && stats.lastCustom.length > 0) {
+    customSelection = new Set(stats.lastCustom);
+    document.querySelectorAll('#state-checkboxes input').forEach(cb => {
+      cb.checked = customSelection.has(cb.value);
+    });
+    updateCustomCount();
+  }
+
+  // Restore mode
+  if (stats.lastMode) {
+    gameMode = stats.lastMode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    const modeBtn = document.querySelector(`.mode-btn[data-mode="${gameMode}"]`);
+    if (modeBtn) modeBtn.classList.add('active');
+    document.getElementById('practice-options').hidden = gameMode !== 'practice';
+  }
+
+  // Restore practice count
+  if (stats.lastPracticeCount) {
+    practiceTotal = stats.lastPracticeCount;
+    document.querySelectorAll('.count-btn').forEach(b => b.classList.remove('active'));
+    const countBtn = document.querySelector(`.count-btn[data-count="${practiceTotal}"]`);
+    if (countBtn) countBtn.classList.add('active');
+  }
+
+  // Update start button text
+  const startBtn = document.getElementById('start-quiz-btn');
+  startBtn.textContent = gameMode === 'practice' ? `Start Practice (${practiceTotal} Qs)` : 'Start Quiz (5 questions)';
 }
 
 // ===== QUIZ LOGIC =====
@@ -251,8 +339,182 @@ function startRound() {
   score = 0;
   results = [];
   answered = false;
+  gameMode = 'quiz';
+  document.getElementById('practice-hud').hidden = true;
+  document.querySelector('.quiz-progress').hidden = false;
   showScreen('quiz-screen');
   renderQuestion();
+}
+
+// ===== PRACTICE MODE =====
+function startPractice() {
+  practiceCount = 0;
+  practiceCorrect = 0;
+  results = [];
+  answered = false;
+  document.getElementById('practice-hud').hidden = false;
+  document.querySelector('.quiz-progress').hidden = true;
+  updatePracticeHUD();
+  showScreen('quiz-screen');
+  nextPracticeQuestion();
+}
+
+function nextPracticeQuestion() {
+  const pool = getQuizPool();
+  const stats = getStats();
+  // Weighted random: prioritize weak states
+  const scored = pool.map(s => {
+    const record = stats.states[s.state] || { correct: 0, wrong: 0 };
+    const weight = Math.max(1, 5 - record.correct + record.wrong * 2);
+    return { ...s, weight };
+  });
+  // Weighted random pick
+  const totalWeight = scored.reduce((sum, s) => sum + s.weight, 0);
+  let r = Math.random() * totalWeight;
+  let picked = scored[0];
+  for (const s of scored) {
+    r -= s.weight;
+    if (r <= 0) { picked = s; break; }
+  }
+
+  const q = generateQuestion(picked);
+  questions = [q];
+  currentQ = 0;
+  answered = false;
+  renderPracticeQuestion(q);
+}
+
+function renderPracticeQuestion(q) {
+  answered = false;
+
+  const abbrEl = document.getElementById('field-abbr');
+  const stateEl = document.getElementById('field-state');
+  const capitalEl = document.getElementById('field-capital');
+
+  abbrEl.textContent = q.given.includes('abbr') ? q.abbr : '?';
+  abbrEl.className = 'field-value ' + (q.given.includes('abbr') ? 'given' : 'blank');
+  stateEl.textContent = q.given.includes('state') ? q.state : '?';
+  stateEl.className = 'field-value ' + (q.given.includes('state') ? 'given' : 'blank');
+  capitalEl.textContent = q.given.includes('capital') ? q.capital : '?';
+  capitalEl.className = 'field-value ' + (q.given.includes('capital') ? 'given' : 'blank');
+
+  // Generate options from full STATES pool (not just selected)
+  const correctVal = q[q.fill];
+  const allValues = STATES.map(s => s[q.fill]);
+  const wrongOptions = shuffle(allValues.filter(v => v !== correctVal)).slice(0, 3);
+  const options = shuffle([correctVal, ...wrongOptions]);
+
+  const inputSection = document.getElementById('input-section');
+  const label = q.fill === 'abbr' ? 'Abbreviation' : q.fill === 'state' ? 'State Name' : 'Capital';
+  inputSection.innerHTML = `
+    <p class="pick-label">Pick the ${label}:</p>
+    <div class="options-grid">
+      ${options.map(opt => `<button class="option-btn" data-value="${opt}">${opt}</button>`).join('')}
+    </div>
+  `;
+
+  inputSection.querySelectorAll('.option-btn').forEach(btn => {
+    btn.addEventListener('click', () => pickPracticeOption(btn, correctVal, q));
+  });
+
+  document.getElementById('next-btn').hidden = true;
+  document.getElementById('quiz-feedback').hidden = true;
+}
+
+function pickPracticeOption(btn, correctVal, q) {
+  if (answered) return;
+  answered = true;
+  practiceCount++;
+
+  const picked = btn.dataset.value;
+  const isCorrect = picked === correctVal;
+
+  document.querySelectorAll('.option-btn').forEach(b => {
+    b.classList.add('disabled');
+    if (b.dataset.value === correctVal) b.classList.add('correct');
+    if (b === btn && !isCorrect) b.classList.add('wrong');
+  });
+
+  // Show all fields on wrong
+  if (isCorrect) {
+    if (q.fill === 'abbr') { document.getElementById('field-abbr').textContent = q.abbr; document.getElementById('field-abbr').className = 'field-value given'; }
+    if (q.fill === 'state') { document.getElementById('field-state').textContent = q.state; document.getElementById('field-state').className = 'field-value given'; }
+    if (q.fill === 'capital') { document.getElementById('field-capital').textContent = q.capital; document.getElementById('field-capital').className = 'field-value given'; }
+    practiceCorrect++;
+  } else {
+    document.getElementById('field-abbr').textContent = q.abbr;
+    document.getElementById('field-abbr').className = 'field-value given';
+    document.getElementById('field-state').textContent = q.state;
+    document.getElementById('field-state').className = 'field-value given';
+    document.getElementById('field-capital').textContent = q.capital;
+    document.getElementById('field-capital').className = 'field-value given';
+  }
+
+  const feedback = document.getElementById('quiz-feedback');
+  feedback.hidden = false;
+  if (isCorrect) {
+    feedback.className = 'quiz-feedback correct';
+    feedback.textContent = '✅ Correct!';
+  } else {
+    feedback.className = 'quiz-feedback wrong';
+    feedback.textContent = `❌ The answer is: ${correctVal}`;
+  }
+
+  // Update state stats
+  const stats = getStats();
+  if (!stats.states[q.state]) stats.states[q.state] = { correct: 0, wrong: 0 };
+  if (isCorrect) { stats.states[q.state].correct++; } else { stats.states[q.state].wrong++; }
+  saveStats(stats);
+
+  updatePracticeHUD();
+
+  if (practiceCount >= practiceTotal) {
+    document.getElementById('next-btn').hidden = false;
+    document.getElementById('next-btn').textContent = 'See Results →';
+    document.getElementById('next-btn').onclick = finishPractice;
+  } else {
+    document.getElementById('next-btn').hidden = false;
+    document.getElementById('next-btn').textContent = 'Next →';
+    document.getElementById('next-btn').onclick = nextPracticeQuestion;
+  }
+}
+
+function updatePracticeHUD() {
+  document.getElementById('practice-counter').textContent = `${practiceCount} / ${practiceTotal}`;
+  const pct = practiceCount > 0 ? Math.round((practiceCorrect / practiceCount) * 100) : 0;
+  document.getElementById('practice-accuracy').textContent = `✅ ${pct}%`;
+  document.getElementById('practice-progress-fill').style.width = `${(practiceCount / practiceTotal) * 100}%`;
+}
+
+function finishPractice() {
+  // Reset next button behavior
+  document.getElementById('next-btn').onclick = null;
+  document.getElementById('next-btn').textContent = 'Next →';
+
+  const stats = getStats();
+  stats.rounds++;
+  updateStreak();
+  saveStats(stats);
+
+  earnBadge('first_round');
+  const streakStats = getStats();
+  if (streakStats.streak >= 3) earnBadge('streak_3');
+  if (streakStats.streak >= 5) earnBadge('streak_5');
+  if (streakStats.streak >= 7) earnBadge('streak_7');
+  if (streakStats.streak >= 14) earnBadge('streak_14');
+  const mastered = getMasteredCount();
+  if (mastered >= 10) earnBadge('mastered_10');
+  if (mastered >= 25) earnBadge('mastered_25');
+  if (mastered >= 50) earnBadge('mastered_50');
+
+  const pct = practiceCount > 0 ? Math.round((practiceCorrect / practiceCount) * 100) : 0;
+  if (pct === 100 && practiceCount >= 50) earnBadge('perfect_5');
+
+  showScreen('results-screen');
+  document.getElementById('score-num').textContent = `${pct}%`;
+  document.getElementById('results-message').textContent = `${practiceCorrect}/${practiceCount} correct — ${pct >= 90 ? '🎉 Amazing!' : pct >= 70 ? '👏 Great work!' : pct >= 50 ? '👍 Keep going!' : '💪 Practice more!'}`;
+  document.getElementById('results-list').innerHTML = '';
+  updateHeader();
 }
 
 function renderQuestion() {
@@ -507,7 +769,10 @@ function updateHeader() {
 }
 
 // ===== EVENT LISTENERS =====
-document.getElementById('next-btn').addEventListener('click', nextQuestion);
+document.getElementById('next-btn').addEventListener('click', function() {
+  // Only handle quiz mode here; practice mode sets its own onclick
+  if (gameMode === 'quiz') nextQuestion();
+});
 document.getElementById('play-again').addEventListener('click', () => showScreen('setup-screen'));
 document.getElementById('show-stats').addEventListener('click', showStats);
 document.getElementById('back-to-quiz').addEventListener('click', () => showScreen('setup-screen'));
@@ -528,3 +793,4 @@ if (new URLSearchParams(window.location.search).get('reset') === 'true') {
 
 updateHeader();
 initSetup();
+restoreSavedSelection();

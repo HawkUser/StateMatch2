@@ -363,6 +363,30 @@ footer { text-align: center; margin-top: 20px; }
 }
 .setup-card h2 { margin-bottom: 18px; font-size: 1.3rem; }
 
+.mode-toggle {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 16px;
+  background: var(--surface2);
+  padding: 4px;
+  border-radius: 24px;
+  display: inline-flex;
+}
+.mode-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.mode-btn.active { background: var(--primary); color: white; }
+.mode-btn:hover:not(.active) { color: var(--text); }
+
 .setup-presets {
   display: flex;
   flex-wrap: wrap;
@@ -403,6 +427,70 @@ footer { text-align: center; margin-top: 20px; }
 }
 .picker-action:hover { color: var(--text); border-color: var(--text-muted); }
 .selected-count { font-size: 0.8rem; color: var(--text-muted); }
+
+.practice-options {
+  margin-bottom: 16px;
+}
+.practice-options label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.practice-counts {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.count-btn {
+  background: var(--surface2);
+  border: 2px solid var(--surface3);
+  color: var(--text-muted);
+  padding: 8px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.count-btn:hover { border-color: var(--primary); color: var(--text); }
+.count-btn.active { border-color: var(--primary); color: var(--primary); background: rgba(99,102,241,0.1); }
+
+/* Practice HUD */
+.practice-hud {
+  margin-bottom: 16px;
+}
+.practice-progress-bar {
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.practice-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.practice-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.btn-quit {
+  background: var(--surface2);
+  border: 1px solid var(--surface3);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+}
+.btn-quit:hover { color: var(--danger); border-color: var(--danger); }
 
 .state-checkboxes {
   display: grid;
