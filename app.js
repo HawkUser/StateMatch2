@@ -80,7 +80,8 @@ function getStats() {
     rounds: 0,
     lastScore: null,
     badges: [],
-    states: {} // { "Alabama": { correct: 3, wrong: 1 } }
+    states: {},
+    history: [] // { date, mode, correct, total, statesCount, preset }
   };
   return { ...defaults, ...JSON.parse(localStorage.getItem('statesQuiz') || '{}') };
 }
@@ -153,9 +154,11 @@ function initSetup() {
       document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       gameMode = btn.dataset.mode;
-      document.getElementById('practice-options').hidden = gameMode !== 'practice';
+      document.getElementById('practice-options').hidden = (gameMode === 'quiz');
       const startBtn = document.getElementById('start-quiz-btn');
-      startBtn.textContent = gameMode === 'practice' ? `Start Practice (${practiceTotal} Qs)` : 'Start Quiz (5 questions)';
+      if (gameMode === 'quiz') startBtn.textContent = 'Start Quiz (5 questions)';
+      else if (gameMode === 'practice') startBtn.textContent = `Start Practice (${practiceTotal} Qs)`;
+      else startBtn.textContent = `Start Typing (${practiceTotal} Qs)`;
     });
   });
 
@@ -165,7 +168,9 @@ function initSetup() {
       document.querySelectorAll('.count-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       practiceTotal = parseInt(btn.dataset.count);
-      document.getElementById('start-quiz-btn').textContent = `Start Practice (${practiceTotal} Qs)`;
+      const startBtn = document.getElementById('start-quiz-btn');
+      if (gameMode === 'practice') startBtn.textContent = `Start Practice (${practiceTotal} Qs)`;
+      else if (gameMode === 'typed') startBtn.textContent = `Start Typing (${practiceTotal} Qs)`;
     });
   });
 
@@ -226,6 +231,8 @@ function initSetup() {
     }
     if (gameMode === 'practice') {
       startPractice();
+    } else if (gameMode === 'typed') {
+      startTypedPractice();
     } else {
       startRound();
     }
@@ -271,7 +278,7 @@ function restoreSavedSelection() {
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     const modeBtn = document.querySelector(`.mode-btn[data-mode="${gameMode}"]`);
     if (modeBtn) modeBtn.classList.add('active');
-    document.getElementById('practice-options').hidden = gameMode !== 'practice';
+    document.getElementById('practice-options').hidden = (gameMode === 'quiz');
   }
 
   // Restore practice count
@@ -284,7 +291,9 @@ function restoreSavedSelection() {
 
   // Update start button text
   const startBtn = document.getElementById('start-quiz-btn');
-  startBtn.textContent = gameMode === 'practice' ? `Start Practice (${practiceTotal} Qs)` : 'Start Quiz (5 questions)';
+  if (gameMode === 'quiz') startBtn.textContent = 'Start Quiz (5 questions)';
+  else if (gameMode === 'practice') startBtn.textContent = `Start Practice (${practiceTotal} Qs)`;
+  else startBtn.textContent = `Start Typing (${practiceTotal} Qs)`;
 }
 
 // ===== QUIZ LOGIC =====
@@ -510,11 +519,158 @@ function finishPractice() {
   const pct = practiceCount > 0 ? Math.round((practiceCorrect / practiceCount) * 100) : 0;
   if (pct === 100 && practiceCount >= 50) earnBadge('perfect_5');
 
+  // Save quiz history
+  const pool = getQuizPool();
+  const historyEntry = {
+    date: new Date().toISOString(),
+    mode: gameMode === 'typed' ? 'typed' : 'practice',
+    correct: practiceCorrect,
+    total: practiceCount,
+    statesCount: pool.length,
+    preset: selectedPreset
+  };
+  const statsForHistory = getStats();
+  if (!statsForHistory.history) statsForHistory.history = [];
+  statsForHistory.history.push(historyEntry);
+  if (statsForHistory.history.length > 50) statsForHistory.history = statsForHistory.history.slice(-50);
+  saveStats(statsForHistory);
+
   showScreen('results-screen');
   document.getElementById('score-num').textContent = `${pct}%`;
-  document.getElementById('results-message').textContent = `${practiceCorrect}/${practiceCount} correct — ${pct >= 90 ? '🎉 Amazing!' : pct >= 70 ? '👏 Great work!' : pct >= 50 ? '👍 Keep going!' : '💪 Practice more!'}`;
+  document.getElementById('results-message').textContent = `${practiceCorrect}/${practiceCount} correct from ${pool.length} states — ${pct >= 90 ? '🎉 Amazing!' : pct >= 70 ? '👏 Great work!' : pct >= 50 ? '👍 Keep going!' : '💪 Practice more!'}`;
   document.getElementById('results-list').innerHTML = '';
   updateHeader();
+}
+
+// ===== TYPED PRACTICE MODE =====
+function startTypedPractice() {
+  practiceCount = 0;
+  practiceCorrect = 0;
+  results = [];
+  answered = false;
+  gameMode = 'typed';
+  document.getElementById('practice-hud').hidden = false;
+  document.querySelector('.quiz-progress').hidden = true;
+  updatePracticeHUD();
+  showScreen('quiz-screen');
+  nextTypedQuestion();
+}
+
+function nextTypedQuestion() {
+  const pool = getQuizPool();
+  const stats = getStats();
+  const scored = pool.map(s => {
+    const record = stats.states[s.state] || { correct: 0, wrong: 0 };
+    const weight = Math.max(1, 5 - record.correct + record.wrong * 2);
+    return { ...s, weight };
+  });
+  const totalWeight = scored.reduce((sum, s) => sum + s.weight, 0);
+  let r = Math.random() * totalWeight;
+  let picked = scored[0];
+  for (const s of scored) {
+    r -= s.weight;
+    if (r <= 0) { picked = s; break; }
+  }
+
+  const q = generateQuestion(picked);
+  questions = [q];
+  currentQ = 0;
+  answered = false;
+  renderTypedQuestion(q);
+}
+
+function renderTypedQuestion(q) {
+  answered = false;
+
+  const abbrEl = document.getElementById('field-abbr');
+  const stateEl = document.getElementById('field-state');
+  const capitalEl = document.getElementById('field-capital');
+
+  abbrEl.textContent = q.given.includes('abbr') ? q.abbr : '?';
+  abbrEl.className = 'field-value ' + (q.given.includes('abbr') ? 'given' : 'blank');
+  stateEl.textContent = q.given.includes('state') ? q.state : '?';
+  stateEl.className = 'field-value ' + (q.given.includes('state') ? 'given' : 'blank');
+  capitalEl.textContent = q.given.includes('capital') ? q.capital : '?';
+  capitalEl.className = 'field-value ' + (q.given.includes('capital') ? 'given' : 'blank');
+
+  const label = q.fill === 'abbr' ? 'Abbreviation' : q.fill === 'state' ? 'State Name' : 'Capital';
+  const inputSection = document.getElementById('input-section');
+  inputSection.innerHTML = `
+    <div class="type-row">
+      <p class="pick-label">Type the ${label}:</p>
+      <input type="text" id="typed-input" class="typed-input" autocomplete="off" spellcheck="false" placeholder="Type here...">
+      <button id="typed-submit" class="btn-primary btn-submit-type">Check</button>
+    </div>
+  `;
+
+  const input = document.getElementById('typed-input');
+  setTimeout(() => input.focus(), 50);
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitTypedAnswer(q);
+  });
+  document.getElementById('typed-submit').addEventListener('click', () => submitTypedAnswer(q));
+
+  document.getElementById('next-btn').hidden = true;
+  document.getElementById('quiz-feedback').hidden = true;
+}
+
+function submitTypedAnswer(q) {
+  if (answered) return;
+  answered = true;
+  practiceCount++;
+
+  const input = document.getElementById('typed-input');
+  const userVal = input.value.trim();
+  const correctVal = q[q.fill];
+  const isCorrect = userVal.toLowerCase() === correctVal.toLowerCase();
+
+  input.disabled = true;
+  input.classList.add(isCorrect ? 'correct' : 'wrong');
+  document.getElementById('typed-submit').hidden = true;
+
+  // Show all fields
+  if (isCorrect) {
+    if (q.fill === 'abbr') { document.getElementById('field-abbr').textContent = q.abbr; document.getElementById('field-abbr').className = 'field-value given'; }
+    if (q.fill === 'state') { document.getElementById('field-state').textContent = q.state; document.getElementById('field-state').className = 'field-value given'; }
+    if (q.fill === 'capital') { document.getElementById('field-capital').textContent = q.capital; document.getElementById('field-capital').className = 'field-value given'; }
+    practiceCorrect++;
+  } else {
+    document.getElementById('field-abbr').textContent = q.abbr;
+    document.getElementById('field-abbr').className = 'field-value given';
+    document.getElementById('field-state').textContent = q.state;
+    document.getElementById('field-state').className = 'field-value given';
+    document.getElementById('field-capital').textContent = q.capital;
+    document.getElementById('field-capital').className = 'field-value given';
+  }
+
+  const feedback = document.getElementById('quiz-feedback');
+  feedback.hidden = false;
+  if (isCorrect) {
+    feedback.className = 'quiz-feedback correct';
+    feedback.textContent = '✅ Correct!';
+  } else {
+    feedback.className = 'quiz-feedback wrong';
+    feedback.textContent = `❌ The answer is: ${correctVal}`;
+  }
+
+  // Update state stats
+  const stats = getStats();
+  if (!stats.states[q.state]) stats.states[q.state] = { correct: 0, wrong: 0 };
+  if (isCorrect) { stats.states[q.state].correct++; } else { stats.states[q.state].wrong++; }
+  saveStats(stats);
+
+  updatePracticeHUD();
+
+  if (practiceCount >= practiceTotal) {
+    document.getElementById('next-btn').hidden = false;
+    document.getElementById('next-btn').textContent = 'See Results →';
+    document.getElementById('next-btn').onclick = finishPractice;
+  } else {
+    document.getElementById('next-btn').hidden = false;
+    document.getElementById('next-btn').textContent = 'Next →';
+    document.getElementById('next-btn').onclick = nextTypedQuestion;
+  }
 }
 
 function renderQuestion() {
@@ -686,6 +842,23 @@ function finishRound() {
   stats.lastScore = score;
   saveStats(stats);
 
+  // Save quiz history
+  const pool = getQuizPool();
+  const historyEntry = {
+    date: new Date().toISOString(),
+    mode: 'quiz',
+    correct: score,
+    total: QUESTION_COUNT,
+    statesCount: pool.length,
+    preset: selectedPreset
+  };
+  const statsForHistory = getStats();
+  if (!statsForHistory.history) statsForHistory.history = [];
+  statsForHistory.history.push(historyEntry);
+  // Keep last 50 entries
+  if (statsForHistory.history.length > 50) statsForHistory.history = statsForHistory.history.slice(-50);
+  saveStats(statsForHistory);
+
   // Show results
   showScreen('results-screen');
   document.getElementById('score-num').textContent = score;
@@ -696,7 +869,7 @@ function finishRound() {
     score === 3 ? '👍 Good job, keep going!' : '',
     score <= 2 ? '💪 Keep practicing, you\'ll get there!' : ''
   ].find(m => m) || '';
-  document.getElementById('results-message').textContent = messages;
+  document.getElementById('results-message').textContent = `${messages} (from ${pool.length} states)`;
 
   document.getElementById('results-list').innerHTML = results.map(r => {
     return `<div class="result-row ${r.correct ? 'correct' : 'wrong'}">
@@ -721,6 +894,26 @@ function showStats() {
   document.getElementById('badges-list').innerHTML = BADGES.map(b =>
     `<div class="badge-item ${stats.badges.includes(b.id) ? 'earned' : ''}" title="${b.desc}">${b.name}</div>`
   ).join('');
+
+  // Quiz history
+  const history = (stats.history || []).slice().reverse();
+  const historyEl = document.getElementById('quiz-history');
+  if (history.length === 0) {
+    historyEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:12px;font-size:0.85rem;">No quizzes yet.</p>';
+  } else {
+    historyEl.innerHTML = history.map(h => {
+      const date = new Date(h.date);
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+      const pct = Math.round((h.correct / h.total) * 100);
+      const modeLabel = h.mode === 'quiz' ? '🧠' : h.mode === 'typed' ? '✍️' : '🔁';
+      const presetLabel = h.preset === 'all' ? 'All 50' : h.preset === 'weak' ? 'Weak' : h.preset === 'custom' ? 'Custom' : h.preset.charAt(0).toUpperCase() + h.preset.slice(1);
+      return `<div class="history-row">
+        <span class="history-mode">${modeLabel}</span>
+        <span class="history-detail">${h.correct}/${h.total} (${pct}%) · ${h.statesCount} states · ${presetLabel}</span>
+        <span class="history-date">${dateStr}</span>
+      </div>`;
+    }).join('');
+  }
 
   // States mastery
   renderMastery('all');
